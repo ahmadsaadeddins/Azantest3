@@ -68,65 +68,55 @@ class DailyAzanReschedulerWorker(
                 return Result.success()
             }
 
-            // 6. Fetch all prayer times from the repository (similar to how ViewModel might load them initially)
-            // In PrayerViewModel, it's `repository.getAllPrayers()`. Assuming this is a suspend function.
-            val allPrayerTimeEntities: List<PrayerTime> = prayerRepository.getAllPrayers()
+            val nowCalendar = Calendar.getInstance()
+            val currentDayOfMonth: Int = nowCalendar.get(Calendar.DAY_OF_MONTH)
+
+// *** Assumption: Your PrayerTime.month_name is stored as English abbreviation like "Jan", "Feb", "Jun" ***
+// If it's stored as full English name like "January", "June", use "MMMM" here.
+            val monthFormatterForQuery = SimpleDateFormat("MMM", Locale.ENGLISH) // Use "MMM" for "Jun", "Jul" etc.
+            val currentMonthNameForQuery: String = monthFormatterForQuery.format(nowCalendar.time)
+            Log.d(TAG, "doWork: Fetching prayers for Month: '$currentMonthNameForQuery', Day: $currentDayOfMonth")
+
+
+// Fetch prayers using the consistent month name format you expect in your DB/repository
+            val allPrayerTimeEntities: List<PrayerTime> = prayerRepository.getTodayAndTomorrowPrayers(currentMonthNameForQuery, currentDayOfMonth)
+
             Log.d(TAG, "doWork: Fetched ${allPrayerTimeEntities.size} prayer entities from DB.")
 
-
             if (allPrayerTimeEntities.isEmpty()) {
-                Log.i(TAG, "doWork: No prayer times found in the database. Cancelling all Azans.")
+                Log.i(TAG, "doWork: No prayer times found in the database for $currentMonthNameForQuery, day $currentDayOfMonth. Cancelling all Azans.")
                 azanScheduler.cancelAllScheduledAzans()
+                db?.close() // Ensure DB is closed if returning early
                 return Result.success()
             }
-
-            Log.d(TAG, "doWork: Azan enabled. Proceeding to reschedule for the current day.")
-
-            // --- Core Rescheduling Logic ---
+// --- Core Rescheduling Logic ---
             azanScheduler.cancelAllScheduledAzans() // Clear any old alarms first
 
-            // Determine "today" for the worker (the day it's running for)
-            val workerCurrentDayCalendar = Calendar.getInstance() // This is the "current day" for the worker
-
-            // Find the PrayerTime entity for the worker's current day
-            // This logic needs to correctly map the workerCurrentDayCalendar to your PrayerTime entity's date components
-//            val currentMonthName = SimpleDateFormat("MMMM", Locale.ENGLISH).format(workerCurrentDayCalendar.time)
-//            val currentDayOfMonth = workerCurrentDayCalendar.get(Calendar.DAY_OF_MONTH)
-//            val todayPrayerTimesEntity = allPrayerTimeEntities.find { pt ->
-//                pt.month_name.equals(currentMonthName, ignoreCase = true) && pt.day == currentDayOfMonth
-//            }
-            // Inside DailyAzanReschedulerWorker.kt, before the .find block:
-
-            Log.d(TAG, "doWork: Total prayer entities fetched: ${allPrayerTimeEntities.size}")
+            Log.d(TAG, "doWork: Azan enabled. Proceeding to reschedule for the current day.")
+            Log.d(TAG, "doWork: Total prayer entities available after fetch: ${allPrayerTimeEntities.size}")
             if (allPrayerTimeEntities.isNotEmpty()) {
-                Log.d(TAG, "doWork: First entity month: ${allPrayerTimeEntities.first().month_name}, day: ${allPrayerTimeEntities.first().day}")
-                Log.d(TAG, "doWork: Last entity month: ${allPrayerTimeEntities.last().month_name}, day: ${allPrayerTimeEntities.last().day}")
+                Log.d(TAG, "doWork: First entity in list - Month: ${allPrayerTimeEntities.first().month_name}, Day: ${allPrayerTimeEntities.first().day}")
+                Log.d(TAG, "doWork: Last entity in list - Month: ${allPrayerTimeEntities.last().month_name}, Day: ${allPrayerTimeEntities.last().day}")
             }
 
-            val juneEntries = allPrayerTimeEntities.filter { it.month_name.equals("June", ignoreCase = true) }
-            if (juneEntries.isEmpty()) {
-                Log.w(TAG, "doWork: No entities found for month 'June' in the database.")
-            } else {
-                Log.d(TAG, "doWork: Found ${juneEntries.size} entities for 'June'. Days found: ${juneEntries.map { it.day }.joinToString()}")
-            }
-
-            // ... then the find block ...
-            val currentMonthName = SimpleDateFormat("MMM", Locale.ENGLISH).format(workerCurrentDayCalendar.time)
-            val currentDayOfMonth = workerCurrentDayCalendar.get(Calendar.DAY_OF_MONTH)
-            Log.d(TAG, "doWork: Trying to find match for Month: '$currentMonthName', Day: $currentDayOfMonth")
+// Find the PrayerTime entity for today from the fetched list.
+// The currentMonthNameForQuery and currentDayOfMonth are already defined and consistent.
+            Log.d(TAG, "doWork: Searching for today's prayer entity for Month: '$currentMonthNameForQuery', Day: $currentDayOfMonth within the fetched list.")
 
             val todayPrayerTimesEntity = allPrayerTimeEntities.find { pt ->
-                val monthMatches = pt.month_name.equals(currentMonthName, ignoreCase = true)
+                // Ensure the comparison is robust. The month_name from DB should match currentMonthNameForQuery.
+                val monthMatches = pt.month_name.equals(currentMonthNameForQuery, ignoreCase = true)
                 val dayMatches = pt.day == currentDayOfMonth
-                if (!monthMatches && currentMonthName == "June") { // Specific log for June mismatch
-                    Log.d(TAG, "Debug find: Entity month '${pt.month_name}' (day ${pt.day}) does not match target month '$currentMonthName'")
-                }
+
+                // Optional: Log if a specific entity is being checked (can be verbose)
+                // Log.v(TAG, "Checking entity: DBMonth='${pt.month_name}', DBDay=${pt.day} against TargetMonth='$currentMonthNameForQuery', TargetDay=$currentDayOfMonth. MonthMatch=$monthMatches, DayMatch=$dayMatches")
+
                 monthMatches && dayMatches
             }
 
 
             if (todayPrayerTimesEntity == null) {
-                Log.w(TAG, "doWork: No prayer times entity found for today ($currentMonthName, $currentDayOfMonth). Cannot schedule.")
+                Log.w(TAG, "doWork: No prayer times entity found for today ( $currentDayOfMonth). Cannot schedule.")
                 // It's possible the JSON doesn't have an entry for every single day, or month name mismatch
                 return Result.success() // Or failure, depending on desired behavior
             }
@@ -135,7 +125,7 @@ class DailyAzanReschedulerWorker(
 
             val prayerDatesToSchedule = mutableListOf<Date>()
             val prayerNamesToSchedule = mutableListOf<String>() // For passing to AzanScheduler if it needs names
-
+            val baseCalendarForToday = nowCalendar // This is already set to the worker's current day
             val timeFormatter = SimpleDateFormat("HH:mm", Locale.US) // Assuming times are "HH:mm" in DB
 
             for (prayerName in RELEVANT_PRAYER_NAMES_FOR_AZAN) {
@@ -152,9 +142,9 @@ class DailyAzanReschedulerWorker(
                     try {
                         val prayerTimeCalendar = Calendar.getInstance()
                         // Start with the date part of the worker's current day
-                        prayerTimeCalendar.set(Calendar.YEAR, workerCurrentDayCalendar.get(Calendar.YEAR))
-                        prayerTimeCalendar.set(Calendar.MONTH, workerCurrentDayCalendar.get(Calendar.MONTH))
-                        prayerTimeCalendar.set(Calendar.DAY_OF_MONTH, workerCurrentDayCalendar.get(Calendar.DAY_OF_MONTH))
+                        prayerTimeCalendar.set(Calendar.YEAR, baseCalendarForToday.get(Calendar.YEAR))
+                        prayerTimeCalendar.set(Calendar.MONTH, baseCalendarForToday.get(Calendar.MONTH))
+                        prayerTimeCalendar.set(Calendar.DAY_OF_MONTH, baseCalendarForToday.get(Calendar.DAY_OF_MONTH))
 
                         // Parse the HH:mm string from the database
                         val parsedTime = timeFormatter.parse(prayerTimeString)

@@ -50,7 +50,7 @@ fun calculateInitialDelayToAfterMidnight(): Long {
     val now = calendar.timeInMillis
     calendar.add(Calendar.DAY_OF_YEAR, 1) // Move to tomorrow
     calendar.set(Calendar.HOUR_OF_DAY, 0)  // Midnight
-    calendar.set(Calendar.MINUTE, 5)     // 00:05 AM
+    calendar.set(Calendar.MINUTE, 1)     // 00:01 AM
     calendar.set(Calendar.SECOND, 0)
     calendar.set(Calendar.MILLISECOND, 0)
     val nextRunTime = calendar.timeInMillis

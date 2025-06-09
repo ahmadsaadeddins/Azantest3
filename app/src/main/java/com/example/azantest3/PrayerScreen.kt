@@ -2,7 +2,6 @@ package com.example.azantest3
 
 
 import android.util.Log
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,29 +30,23 @@ import androidx.compose.runtime.collectAsState
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.material3.Switch // For the toggle
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import android.os.Build
 import androidx.compose.ui.platform.LocalContext
 import android.app.AlarmManager
 import android.content.Context
-import android.content.Intent
 import androidx.compose.runtime.Composable
-import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.heightIn
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import androidx.compose.foundation.rememberScrollState // Import this
 import androidx.compose.foundation.verticalScroll     // Import this
-import androidx.compose.ui.modifier.modifierLocalOf
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
-
-val PRAYER_NAMES = listOf("fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha")
-val PRAYER_NAMES_ARABIC = listOf("الفجر", "الشروق", "الظهر", "العصر", "المغرب", "العشاء")
+import com.example.azantest3.datastore.PRAYER_NAMES
+import com.example.azantest3.datastore.PRAYER_NAMES_ARABIC
 
 // ... (prayers3661 data - I'm omitting this for brevity as it's not directly modified)
 
@@ -285,12 +278,12 @@ fun PrayerCard(prayers: List<List<Date>>, remainingToPrayer: String, currentNext
 
             Card(
                 shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(8.dp),
+                elevation = CardDefaults.cardElevation(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .padding(8.dp)
+                    .padding(top = 26.dp, start = 10.dp, end = 10.dp)
                     .heightIn(min = 300.dp)
             ) {
                 val scrollState = rememberScrollState() // Remember the scroll state
@@ -305,7 +298,7 @@ fun PrayerCard(prayers: List<List<Date>>, remainingToPrayer: String, currentNext
                         style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp), // Adjusted font size
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 40.dp) // Increased padding
+//                        modifier = Modifier.padding(top = 5.dp) // Increased padding
                     )
 
                     // Determine the current and next prayer for display

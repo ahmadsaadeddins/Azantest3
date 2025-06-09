@@ -52,6 +52,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".widget.PrayerTimeWidgetProvider"
+        android:exported="false"> <!-- Set to true if it needs to receive broadcasts from other apps, typically false -->
+        <intent-filter>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            <action android:name="com.example.azantest3.widget.ACTION_AUTO_UPDATE" /> <!-- Custom action -->
+        </intent-filter>
+        <meta-data
+            android:name="android.appwidget.provider"
+            android:resource="@xml/prayer_widget_provider_info" />
+    </receiver>
     </application>
 
 </manifest>

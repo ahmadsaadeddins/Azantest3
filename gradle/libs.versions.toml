@@ -16,6 +16,7 @@ datastorePreferences = "1.1.7"
 workRuntimeKtx = "2.10.1"
 
 [libraries]
+androidx-core = { module = "androidx.core:core", version.ref = "coreKtx" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
