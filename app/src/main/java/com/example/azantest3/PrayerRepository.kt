@@ -141,7 +141,7 @@ class PrayerRepository(private val dao: PrayerTimeDao) {
 
         // 2. If no upcoming prayer today, check Tomorrow's Fajr
         val tomorrowCalendar = Calendar.getInstance().apply { time = currentTime.time; add(Calendar.DAY_OF_MONTH, 1) }
-        val tomorrowMonthName = mapIndexToMonthName(tomorrowCalendar.get(Calendar.MONTH))
+        val tomorrowMonthName = mapIndexToMonthNameAbrrv(tomorrowCalendar.get(Calendar.MONTH))
         val tomorrowDay = tomorrowCalendar.get(Calendar.DAY_OF_MONTH)
 
         val tomorrowPrayerEntity = dao.getByDate(tomorrowMonthName, tomorrowDay)

@@ -142,7 +142,10 @@ fun mapMonthNameToIndexAbbrv(monthName: String): Int {
     }
 }
 fun mapMonthNameToIndexMultilingual(monthName: String): Int {
+    Log.d("PrayerTime", "Received month name: '$monthName'")
+
     val normalizedMonthName = monthName.lowercase().trim()
+    Log.d("PrayerTime", "normalizedMonthName: '$normalizedMonthName' ")
 
     return when (normalizedMonthName) {
         // English Full Names
