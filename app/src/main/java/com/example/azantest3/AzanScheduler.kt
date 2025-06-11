@@ -14,13 +14,17 @@ import java.util.Date
 class AzanScheduler(private val context: Context) {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    private val SUNRISE_PRAYER_NAME_ARABIC = "الشروق"
 
     fun scheduleAzanForPrayer(prayerTime: Date, prayerName: String, prayerIndex: Int) {
         if (prayerTime.before(Date())) {
             Log.d("AzanScheduler", "Skipping past prayer: $prayerName at $prayerTime")
             return // Don't schedule for past times
         }
-
+        if (prayerName.equals(SUNRISE_PRAYER_NAME_ARABIC, ignoreCase = true)) {
+            Log.i("AzanScheduler", "Skipping Azan scheduling for $prayerName as it's Sunrise.")
+            return // Do not schedule Azan for Sunrise
+        }
         val intent = Intent(context, AzanAlarmReceiver::class.java).apply {
             action = AzanAlarmReceiver.ACTION_PLAY_AZAN // Define a unique action
             putExtra(AzanAlarmReceiver.PRAYER_NAME_EXTRA, prayerName)
@@ -30,7 +34,6 @@ class AzanScheduler(private val context: Context) {
         // This is crucial if you want to cancel/update individual alarms.
         // A common way is to use the prayer time's timestamp or a combination of date and index.
         val requestCode = generateRequestCode(prayerTime, prayerIndex)
-
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,

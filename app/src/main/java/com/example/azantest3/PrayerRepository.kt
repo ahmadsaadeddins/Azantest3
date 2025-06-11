@@ -108,12 +108,9 @@ class PrayerRepository(private val dao: PrayerTimeDao) {
                         prayerCal.set(Calendar.SECOND, 0)
                         prayerCal.set(Calendar.MILLISECOND, 0)
 
-                        // TODO: Handle addHourOffset here if it's applied to the Date objects
-                         if (addHour) prayerCal.add(Calendar.HOUR_OF_DAY, 1)
+                        if (addHour) prayerCal.add(Calendar.HOUR_OF_DAY, 1)
 
-                        if (name != PRAYER_NAMES[1]) { // Exclude Sunrise for "next prayer"
-                            result.add(Pair(name, prayerCal.time))
-                        }
+                        result.add(Pair(name, prayerCal.time))
                     }
                 } catch (e: Exception) {
                     Log.e("RepoWidget", "Error parsing time $timeStr for $name: ${e.message}")
