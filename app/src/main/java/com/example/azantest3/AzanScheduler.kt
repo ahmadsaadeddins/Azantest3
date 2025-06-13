@@ -10,6 +10,7 @@ import android.util.Log
 import com.example.azantest3.datastore.PRAYER_NAMES
 import java.util.Calendar
 import java.util.Date
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class AzanScheduler(private val context: Context) {
 
@@ -25,14 +26,12 @@ class AzanScheduler(private val context: Context) {
             Log.i("AzanScheduler", "Skipping Azan scheduling for $prayerName as it's Sunrise.")
             return // Do not schedule Azan for Sunrise
         }
+
         val intent = Intent(context, AzanAlarmReceiver::class.java).apply {
-            action = AzanAlarmReceiver.ACTION_PLAY_AZAN // Define a unique action
+            action = AzanAlarmReceiver.ACTION_PLAY_AZAN
             putExtra(AzanAlarmReceiver.PRAYER_NAME_EXTRA, prayerName)
         }
 
-        // Use prayerIndex to ensure unique PendingIntent request codes for each prayer
-        // This is crucial if you want to cancel/update individual alarms.
-        // A common way is to use the prayer time's timestamp or a combination of date and index.
         val requestCode = generateRequestCode(prayerTime, prayerIndex)
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -44,15 +43,13 @@ class AzanScheduler(private val context: Context) {
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-                Log.w("AzanScheduler", "Cannot schedule exact alarms. App needs SCHEDULE_EXACT_ALARM permission and user grant.")
-                // Optionally, guide user to settings:
-                // context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
-                // Or use a less exact alarm (not suitable for Azan)
-                // Or notify the user that exact alarms are not permitted.
-                Log.d("AzanScheduler", "Setting alarm (inexact if permission denied) for $prayerName at ${prayerTime.time}")
-                // Fallback for devices that can't schedule exact alarms or permission denied (might be less precise)
-                alarmManager.setWindow(AlarmManager.RTC_WAKEUP, prayerTime.time, 60000, pendingIntent)
-
+                Log.w("AzanScheduler", "Exact alarm permission not granted.")
+                alarmManager.setWindow(
+                    AlarmManager.RTC_WAKEUP,
+                    prayerTime.time,
+                    60_000L, // 1 minute window
+                    pendingIntent
+                )
             } else {
                 Log.d("AzanScheduler", "Setting exact alarm for $prayerName at ${prayerTime.time}")
                 alarmManager.setExactAndAllowWhileIdle(
@@ -61,10 +58,13 @@ class AzanScheduler(private val context: Context) {
                     pendingIntent
                 )
             }
+
+            // ✅ Save the requestCode and prayerTime for cancellation later
+            AzanAlarmStore.saveAzan(context, prayerName, prayerTime.time, requestCode)
+
             Log.i("AzanScheduler", "Scheduled Azan for $prayerName ($prayerIndex) at $prayerTime")
         } catch (se: SecurityException) {
-            Log.e("AzanScheduler", "SecurityException: Cannot schedule exact alarm. Check permissions.", se)
-            // Handle the case where the permission might be revoked or not granted
+            Log.e("AzanScheduler", "SecurityException: Cannot schedule exact alarm.", se)
         } catch (e: Exception) {
             Log.e("AzanScheduler", "Error scheduling alarm for $prayerName", e)
         }
@@ -85,7 +85,7 @@ class AzanScheduler(private val context: Context) {
         val intent = Intent(context, AzanAlarmReceiver::class.java).apply {
             action = AzanAlarmReceiver.ACTION_PLAY_AZAN
         }
-        val requestCode = generateRequestCode(prayerTime, prayerIndex)
+        val requestCode = generateRequestCodeForPrayer(PRAYER_NAMES[prayerIndex])
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -116,51 +116,64 @@ class AzanScheduler(private val context: Context) {
      * including a potential "Tomorrow's Fajr".
      */
     fun cancelAllScheduledAzans() {
-        Log.d("AzanScheduler", "Attempting to cancel ALL scheduled Azans...")
-        val prayerNamesToCancel = PRAYER_NAMES.toMutableList()
-        // Add "Tomorrow's Fajr" as it's a special case often scheduled
-        // The actual name passed to putExtra was "Fajr" but the intent might be distinct if not handled carefully
-        // However, if generateRequestCodeForPrayer("Fajr") is consistent, it will cancel the correct Fajr.
-        // If "Tomorrow's Fajr" uses a *different* prayerName string like "Fajr (Tomorrow)" in the intent,
-        // you'd need to add that specific string here.
-        // Assuming your scheduleRelevantAzans uses "Fajr" for tomorrow's Fajr but with a future date.
+        Log.d("AzanScheduler", "🧹 Cancelling ALL scheduled Azans...")
 
-        // It's generally safer to rely on the prayer names used when scheduling.
-        // If your PrayerViewModel schedules tomorrow's Fajr by passing "Fajr" as prayerName,
-        // then iterating through PRAYER_NAMES is sufficient.
+        val storedPrayerNames = AzanAlarmStore.getAllStoredPrayerNames(context)
+        if (storedPrayerNames.isEmpty()) {
+            Log.d("AzanScheduler", "No Azans found in storage to cancel.")
+        } else {
+            storedPrayerNames.forEach { prayerName ->
+                val requestCode = AzanAlarmStore.getRequestCode(context, prayerName)
+                if (requestCode != null) {
+                    val intent = Intent(context, AzanAlarmReceiver::class.java).apply {
+                        action = AzanAlarmReceiver.ACTION_PLAY_AZAN
+                        putExtra(AzanAlarmReceiver.PRAYER_NAME_EXTRA, prayerName)
+                    }
 
-        prayerNamesToCancel.forEach { prayerName ->
-            // Use the same logic as cancelAzan
-            val requestCode = generateRequestCodeForPrayer(prayerName)
-            val intent = Intent(context, AzanAlarmReceiver::class.java).apply {
-                action = AzanAlarmReceiver.ACTION_PLAY_AZAN
-                putExtra(AzanAlarmReceiver.PRAYER_NAME_EXTRA, prayerName) // Must match what was used to schedule
-            }
-            val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-            } else {
-                PendingIntent.FLAG_NO_CREATE
-            }
+                    val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+                    } else {
+                        PendingIntent.FLAG_NO_CREATE
+                    }
 
-            val existingPendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                pendingIntentFlags
-            )
+                    val pendingIntent = PendingIntent.getBroadcast(
+                        context,
+                        requestCode,
+                        intent,
+                        pendingIntentFlags
+                    )
 
-            if (existingPendingIntent != null) {
-                alarmManager.cancel(existingPendingIntent)
-                existingPendingIntent.cancel()
-                Log.d("AzanScheduler", "CANCELLED (in All): $prayerName (Request Code: $requestCode)")
-            } else {
-                Log.d("AzanScheduler", "No active Azan to cancel for $prayerName during 'cancelAll'.")
+                    if (pendingIntent != null) {
+                        alarmManager.cancel(pendingIntent)
+                        pendingIntent.cancel()
+                        AzanAlarmStore.clearAzan(context, prayerName)
+                        Log.i("AzanScheduler", "✅ Cancelled Azan for $prayerName (requestCode=$requestCode)")
+                    } else {
+                        Log.w("AzanScheduler", "⚠️ No PendingIntent found for $prayerName (requestCode=$requestCode)")
+                    }
+                } else {
+                    Log.w("AzanScheduler", "⚠️ No stored requestCode for $prayerName")
+                }
             }
         }
-        Log.d("AzanScheduler", "Finished attempt to cancel all scheduled Azans.")
+
+        // 🔕 Stop any running Azan playback
+        val stopIntent = Intent(context, AzanPlaybackService::class.java).apply {
+            action = AzanPlaybackService.ACTION_STOP_AZAN_SERVICE
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(stopIntent)
+            } else {
+                context.startService(stopIntent)
+            }
+            Log.d("AzanScheduler", "🔕 Sent stop signal to AzanPlaybackService.")
+        } catch (e: Exception) {
+            Log.e("AzanScheduler", "❌ Failed to stop AzanPlaybackService", e)
+        }
+
+        Log.d("AzanScheduler", "✅ Finished cancelling all scheduled Azans.")
     }
-
-
 
     /**
      * Generates a unique integer request code based on the prayer name.
@@ -187,5 +200,12 @@ class AzanScheduler(private val context: Context) {
         // A simple combination. Ensure it's unique enough for your needs.
         // E.g., YYYYMMDDPI where PI is prayer index
         return "${year}${String.format("%02d", month)}${String.format("%02d", day)}${prayerIndex}".toIntOrNull() ?: date.hashCode() + prayerIndex
+    }
+    private fun generateRequestCode1(prayerName: String, date: Date): Int {
+        val cal = Calendar.getInstance()
+        cal.time = date
+        val dayCode = "${cal.get(Calendar.YEAR)}${String.format("%02d", cal.get(Calendar.MONTH))}${String.format("%02d", cal.get(Calendar.DAY_OF_MONTH))}"
+        val hash = prayerName.hashCode().mod(1000)
+        return (dayCode + hash).toIntOrNull() ?: (dayCode.hashCode() + hash)
     }
 }

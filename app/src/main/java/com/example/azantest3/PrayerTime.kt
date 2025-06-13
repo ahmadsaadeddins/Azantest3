@@ -228,13 +228,14 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
     ).build()
 
 
-    private val repository = PrayerRepository(db.prayerTimeDao())
 
     private val _prayers = mutableStateOf<List<PrayerTime>>(emptyList())
     val prayers: State<List<PrayerTime>> = _prayers
 
     private val azanScheduler = AzanScheduler(application.applicationContext) // Initialize Scheduler
     private val settingsDataStore = SettingsDataStore(application.applicationContext)
+    val prayerRepository = PrayerRepository(db.prayerTimeDao(), settingsDataStore)
+
     // --- State for enabling/disabling Azan ---
     // You'll need to persist this setting similar to addHourOffsetSetting
     companion object { // Define key in companion object for SettingsDataStore
@@ -290,18 +291,18 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val calendar = Calendar.getInstance()
             val monthFormatter = SimpleDateFormat("MMM", Locale.getDefault())
-            val currentMonth: String = monthFormatter.format(calendar.time)
-            val currentDayOfMonth: Int = calendar.get(Calendar.DAY_OF_MONTH)
+//            val currentMonth: String = monthFormatter.format(calendar.time)
+//            val currentDayOfMonth: Int = calendar.get(Calendar.DAY_OF_MONTH)
 
-            val currentPrayers = repository.getTodayAndTomorrowPrayers(currentMonth, currentDayOfMonth)
+            val currentPrayers = prayerRepository.getTodayAndTomorrowPrayersCached()
 //            val currentPrayers = repository.getAllPrayers()
 
             if (currentPrayers.isEmpty()) {
                 Log.d("PrayerViewModel", "Database is empty, seeding...")
-                repository.seedDatabase(application)
+                prayerRepository.seedDatabase(application)
             }
             // Load prayers after potential seeding
-            _prayers.value = repository.getAllPrayers()
+            _prayers.value = prayerRepository.getAllPrayers()
             updateAzanSchedules()
             Log.d("PrayerViewModel", "Prayers loaded, count: ${_prayers.value.size}")
             Log.d("PrayerViewModel", "Daily Azan Rescheduler worker enqueued.")

@@ -184,48 +184,53 @@ fun remainingToNextPrayer(next: Date?): String {
 
 @Composable
 fun useRemaining(key: Any, nextPrayerDate: Date?, onPrayerTimeReached: () -> Unit): String {
-    val currentNextPrayerDate by rememberUpdatedState(nextPrayerDate)
-    var remainingTimeDisplay by remember { mutableStateOf(remainingToNextPrayer(currentNextPrayerDate)) }
+    var remainingTimeDisplay by remember { mutableStateOf(remainingToNextPrayer(nextPrayerDate)) }
 
+    LaunchedEffect(key, nextPrayerDate) {
+        val targetDate = nextPrayerDate
+        Log.d("useRemaining", "⏳ Countdown started for: ${targetDate?.let { formatTime(it) } ?: "null"}")
 
-    LaunchedEffect(key, nextPrayerDate) { // Re-launch if key changes OR nextPrayerDate itself changes
-        Log.d("useRemaining", "LaunchedEffect triggered. Next prayer: ${nextPrayerDate?.let { SimpleDateFormat("HH:mm:ss").format(it) } ?: "null"}")
-        // Initial calculation when effect launches/re-launches
-        remainingTimeDisplay = remainingToNextPrayer(nextPrayerDate)
-
-    if (nextPrayerDate != null) {
-        // Only start countdown if there's a future prayer
-        if (nextPrayerDate.time - Date().time > 0) {
-            while (isActive) { // Use isActive to ensure coroutine is still active
-                val newRemaining = remainingToNextPrayer(currentNextPrayerDate)
-                if (newRemaining != remainingTimeDisplay) {
-                    remainingTimeDisplay = newRemaining
-                }
-
-                if (newRemaining == "Prayer time!") {
-                    Log.d("useRemaining", "Prayer time reached for ${currentNextPrayerDate?.let { SimpleDateFormat("HH:mm:ss").format(it) }}. Calling onPrayerTimeReached.")
-                    onPrayerTimeReached() // Notify that prayer time is reached
-                    break // Exit countdown loop for this specific prayer
-                }
-                delay(1000) // Update every second
-            }
-        } else {
-            // If the prayer time is already past or now when this effect starts
-            if (remainingTimeDisplay != "Prayer time!") { // Avoid redundant call if already set
-                Log.d("useRemaining", "Prayer time already passed for ${currentNextPrayerDate?.let { SimpleDateFormat("HH:mm:ss").format(it) }}. Calling onPrayerTimeReached.")
-                remainingTimeDisplay = "Prayer time!"
-                onPrayerTimeReached() // Also notify if already past, to trigger next prayer calc
-            }
+        if (targetDate == null) {
+            remainingTimeDisplay = "No upcoming prayer"
+            return@LaunchedEffect
         }
-    } else {
-        remainingTimeDisplay = "No upcoming prayer"
+
+        if (targetDate.time <= Date().time) {
+            remainingTimeDisplay = "Prayer time!"
+            Log.d("useRemaining", "Prayer time already passed for: ${formatTime(targetDate)}")
+            onPrayerTimeReached()
+            return@LaunchedEffect
+        }
+
+        while (isActive) {
+            val now = Date()
+            val newRemaining = remainingToNextPrayer(targetDate)
+
+            if (newRemaining != remainingTimeDisplay) {
+                remainingTimeDisplay = newRemaining
+            }
+
+            if (targetDate.time <= now.time) {
+                Log.d("useRemaining", "🔔 Prayer time reached at: ${formatTime(targetDate)}")
+                remainingTimeDisplay = "Prayer time!"
+                onPrayerTimeReached()
+                break
+            }
+
+            delay(1000)
+        }
+
+        Log.d("useRemaining", "🛑 Countdown finished. Final: $remainingTimeDisplay")
     }
-    Log.d("useRemaining", "LaunchedEffect finished or broke. Final remaining: $remainingTimeDisplay")
-}
-return remainingTimeDisplay
+
+    return remainingTimeDisplay
 }
 
-
+fun formatTime(date: Date?): String {
+    if (date == null) return "Invalid time"
+    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    return sdf.format(date)
+}
 @Composable
 fun PrayerCard(prayers: List<List<Date>>, remainingToPrayer: String, currentNextPrayerDate: Date?) {
     val (today, todayPrayers, tomorrowPrayers) = todayAndTomorrow(prayers)

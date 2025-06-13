@@ -33,6 +33,15 @@
         tools:targetApi="31"
         android:name=".MyApplication">
         <receiver
+            android:name=".TimeChangeReceiver"
+            android:enabled="true"
+            android:exported="false"> <!-- Set exported to false if only your app needs it -->
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <receiver
             android:enabled="true"
             android:exported="false"
             android:name=".AzanAlarmReceiver" />

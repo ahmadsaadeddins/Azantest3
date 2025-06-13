@@ -32,8 +32,10 @@ import java.util.Locale
 
 // This function is good as is, for getting the repository instance
 private fun getPrayerRepository(context: Context): PrayerRepository {
+    val settingsDataStore = SettingsDataStore(context.applicationContext)
+
     val dao = AppDatabase.getDatabase(context.applicationContext).prayerTimeDao()
-    return PrayerRepository(dao)
+    return PrayerRepository(dao,settingsDataStore)
 }
 
 class PrayerTimeWidgetProvider : AppWidgetProvider() {
@@ -58,8 +60,7 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
             // Get repository instance for each update
             val prayerRepository = getPrayerRepository(context)
             // Get SettingsDataStore instance
-            val settingsDataStore = SettingsDataStore(context.applicationContext)
-            updateAppWidget(context, appWidgetManager, appWidgetId, prayerRepository, settingsDataStore)
+            updateAppWidget(context, appWidgetManager, appWidgetId, prayerRepository)
         }
     }
 
@@ -68,7 +69,6 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
         prayerRepository: PrayerRepository, // Receive the repository
-        settingsDataStore: SettingsDataStore // Receive SettingsDataStore
     ) {
         Log.d(TAG, "updateAppWidget called for appWidgetId: $appWidgetId")
         val views = RemoteViews(context.packageName, R.layout.prayer_widget_layout)
@@ -80,7 +80,7 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
                 // Fetch next prayer using the actual repository method
                 // The getNextUpcomingPrayerForWidget method now directly takes SettingsDataStore
                 val nextPrayerInfo: PrayerRepository.NextPrayerInfo? =
-                    prayerRepository.getNextUpcomingPrayerForWidget(now, settingsDataStore)
+                    prayerRepository.getNextUpcomingPrayerForWidget(now)
 
                 val nextPrayerNameDisplay: String
                 val nextPrayerTimeDate: Date?

@@ -1,11 +1,6 @@
-// AzanPlaybackService.kt
 package com.example.azantest3
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
+import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.media.MediaPlayer
@@ -14,212 +9,237 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
-//import androidx.privacysandbox.tools.core.generator.build
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 
 class AzanPlaybackService : Service() {
 
     private var mediaPlayer: MediaPlayer? = null
-    private var serviceWakeLock: PowerManager.WakeLock? = null // For MediaPlayer's own wakelock needs
+    private var serviceWakeLock: PowerManager.WakeLock? = null
+    private val azanQueue = ConcurrentLinkedQueue<String>()
+    private var isPlaying = false
+    private lateinit var audioManager: AudioManager
+    private var focusRequest: AudioFocusRequest? = null
+
 
     companion object {
         const val PRAYER_NAME_EXTRA_SERVICE = "PRAYER_NAME_EXTRA_SERVICE"
         const val ACTION_PLAY_AZAN_SERVICE = "com.example.azantest3.ACTION_PLAY_AZAN_SERVICE"
-        const val ACTION_STOP_AZAN_SERVICE = "com.example.azantest3.ACTION_STOP_AZAN_SERVICE" // Optional stop action
+        const val ACTION_STOP_AZAN_SERVICE = "com.example.azantest3.ACTION_STOP_AZAN_SERVICE"
 
-        private const val NOTIFICATION_ID = 786 // Must be unique and > 0
+        private const val NOTIFICATION_ID = 786
         private const val CHANNEL_ID = "AzanPlaybackChannel"
         private const val CHANNEL_NAME = "Azan Playback"
     }
 
+
+
+
     override fun onCreate() {
         super.onCreate()
-        Log.d("AzanPlaybackService", "onCreate called.")
         createNotificationChannel()
 
-        // Acquire a WakeLock for the MediaPlayer.
-        // This ensures that the CPU keeps running under partial wake lock mode while playing audio.
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         serviceWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AzanApp::ServiceWakeLockTag")
-        Log.d("AzanPlaybackService", "Service WakeLock created.")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val prayerName = intent?.getStringExtra(PRAYER_NAME_EXTRA_SERVICE) ?: "Azan"
         val action = intent?.action
 
-        Log.d("AzanPlaybackService", "onStartCommand received. Action: $action, Prayer: $prayerName")
+        Log.d("AzanPlaybackService", "onStartCommand: $action | Prayer: $prayerName")
 
-        when (action) {
-            ACTION_PLAY_AZAN_SERVICE -> {
-                Log.d("AzanPlaybackService", "Starting foreground service and Azan for $prayerName.")
-                val notification = createNotification(prayerName)
-                try {
-                    startForeground(NOTIFICATION_ID, notification)
-                    Log.d("AzanPlaybackService", "startForeground called successfully for $prayerName.")
-                    playAzan(prayerName)
-                } catch (e: Exception) {
-                    Log.e("AzanPlaybackService", "Error in startForeground or playAzan for $prayerName", e)
-                    // If startForeground fails (e.g., missing POST_NOTIFICATIONS on API 33+ without permission)
-                    // the service might be killed quickly.
-                    stopSelfAndCleanup()
-                }
+        if (action == ACTION_PLAY_AZAN_SERVICE) {
+            // ✅ ALWAYS call startForeground right away to avoid crash
+            startForeground(NOTIFICATION_ID, createNotification(prayerName))
+
+            if (isPlaying) {
+                azanQueue.offer(prayerName)
+                Log.d("AzanPlaybackService", "Already playing. Queued $prayerName. Queue size: ${azanQueue.size}")
+            } else {
+                playAzan(prayerName)
             }
-            ACTION_STOP_AZAN_SERVICE -> {
-                Log.d("AzanPlaybackService", "Received stop action. Stopping Azan.")
-                stopSelfAndCleanup()
-            }
-            else -> {
-                Log.w("AzanPlaybackService", "Unknown action or no action received: $action. Stopping service.")
-                stopSelfAndCleanup()
-            }
+
+        } else if (action == ACTION_STOP_AZAN_SERVICE) {
+            Log.d("AzanPlaybackService", "Stop action received.")
+            azanQueue.clear()
+            stopSelfAndCleanup()
+        } else {
+            Log.w("AzanPlaybackService", "Unknown action received: $action")
+            stopSelfAndCleanup()
         }
-        // If the service is killed, START_NOT_STICKY means it won't be automatically restarted
-        // unless there are pending intents. For Azan, this is usually fine.
+
         return START_NOT_STICKY
     }
 
-    private fun createNotification(prayerName: String): Notification {
-        // Intent to open your app when notification is clicked (optional)
-        val notificationIntent = Intent(this, MainActivity::class.java) // Replace MainActivity with your main activity
-        val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, pendingIntentFlags)
-
-        // Optional: Add a stop action to the notification
-        val stopServiceIntent = Intent(this, AzanPlaybackService::class.java).apply {
-            action = ACTION_STOP_AZAN_SERVICE
-        }
-        val stopPendingIntent = PendingIntent.getService(this, 1, stopServiceIntent, pendingIntentFlags)
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("حان وقت صلاة $prayerName")
-            .setContentText("الأذان يرفع الآن")
-            .setSmallIcon(R.drawable.ic_stop_azan) // REPLACE with your notification icon
-            .setContentIntent(pendingIntent) // Optional: what happens when user taps notification
-            .addAction(R.drawable.ic_stop_azan, "إيقاف", stopPendingIntent) // Optional: Stop action
-            .setPriority(NotificationCompat.PRIORITY_LOW) // Or DEFAULT. HIGH may make a sound for the notif itself.
-            .setOngoing(true) // Makes the notification non-dismissible while service is foreground
-            .build()
-    }
-
     private fun playAzan(prayerName: String) {
-        if (mediaPlayer != null && mediaPlayer!!.isPlaying) {
-            Log.d("AzanPlaybackService", "MediaPlayer already playing. Stopping previous and restarting for $prayerName.")
-            mediaPlayer?.stop()
+        Log.d("AzanPlaybackService", "Starting playback for $prayerName")
+        isPlaying = true
+
+        if (serviceWakeLock?.isHeld != true) {
+            serviceWakeLock?.acquire(TimeUnit.MINUTES.toMillis(7))
+            Log.d("AzanPlaybackService", "WakeLock acquired.")
+        }
+
+        try {
             mediaPlayer?.release()
-            mediaPlayer = null
-        }
+            mediaPlayer = MediaPlayer.create(this, R.raw.azan)
 
-        Log.d("AzanPlaybackService", "Attempting to create MediaPlayer for R.raw.azan ($prayerName).")
-        mediaPlayer = MediaPlayer.create(this, R.raw.azan) // REPLACE R.raw.azan with your actual file
+            mediaPlayer?.setOnCompletionListener {
+                Log.d("AzanPlaybackService", "Azan finished for $prayerName")
+                isPlaying = false
+                mediaPlayer?.release()
+                mediaPlayer = null
 
-        if (mediaPlayer == null) {
-            Log.e("AzanPlaybackService", "MediaPlayer.create() FAILED for R.raw.azan ($prayerName). Check file path and logs.")
-            stopSelfAndCleanup()
-            return
-        }
-        Log.d("AzanPlaybackService", "MediaPlayer.create() SUCCEEDED for $prayerName.")
-
-        // Acquire WakeLock before starting playback
-        if (serviceWakeLock?.isHeld == false) {
-            serviceWakeLock?.acquire(TimeUnit.MINUTES.toMillis(7)) // Hold for up to 7 minutes (longer than typical Azan)
-            Log.d("AzanPlaybackService", "Service WakeLock acquired for playback.")
-        }
-
-
-        mediaPlayer?.setOnPreparedListener { mp ->
-            val preparedTime = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
-            Log.d("AzanPlaybackService", "MediaPlayer PREPARED at $preparedTime for $prayerName. Starting playback.")
-            try {
-                mp.start()
-                val startedTime = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
-                Log.d("AzanPlaybackService", "MediaPlayer playback STARTED at $startedTime for $prayerName.")
-                // Update notification if needed (e.g., change text to "Playing...")
-            } catch (e: IllegalStateException) {
-                Log.e("AzanPlaybackService", "MediaPlayer start FAILED after prepare for $prayerName", e)
-                stopSelfAndCleanup()
+                val next = azanQueue.poll()
+                if (next != null) {
+                    Log.d("AzanPlaybackService", "Dequeued next prayer: $next")
+                    startForeground(NOTIFICATION_ID, createNotification(next))
+                    playAzan(next)
+                } else {
+                    stopSelfAndCleanup()
+                }
             }
-        }
 
-        mediaPlayer?.setOnCompletionListener {
-            val completedTime = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
-            Log.d("AzanPlaybackService", "MediaPlayer playback COMPLETED at $completedTime for $prayerName.")
+            mediaPlayer?.setOnErrorListener { _, what, extra ->
+                Log.e("AzanPlaybackService", "MediaPlayer error: what=$what extra=$extra")
+                isPlaying = false
+                mediaPlayer?.release()
+                mediaPlayer = null
+                stopSelfAndCleanup()
+                true
+            }
+            val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+                when (focusChange) {
+                    AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                        Log.d("AzanPlaybackService", "Audio focus lost — stopping playback.")
+                        mediaPlayer?.pause()
+                    }
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                        Log.d("AzanPlaybackService", "Audio focus lost (duck) — reducing volume.")
+                        mediaPlayer?.setVolume(0.2f, 0.2f)
+                    }
+                    AudioManager.AUDIOFOCUS_GAIN -> {
+                        Log.d("AzanPlaybackService", "Audio focus regained — resuming or restoring volume.")
+                        mediaPlayer?.setVolume(1f, 1f)
+                        mediaPlayer?.start()
+                    }
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    .setOnAudioFocusChangeListener(focusChangeListener)
+                    .build()
+
+                val result = audioManager.requestAudioFocus(focusRequest!!)
+                if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                    Log.w("AzanPlaybackService", "Failed to gain audio focus. Skipping playback.")
+                    stopSelfAndCleanup()
+                    return
+                }
+            } else {
+                val result = audioManager.requestAudioFocus(
+                    focusChangeListener,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN
+                )
+                if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                    Log.w("AzanPlaybackService", "Failed to gain audio focus (pre-O).")
+                    stopSelfAndCleanup()
+                    return
+                }
+            }
+
+            mediaPlayer?.start()
+            Log.d("AzanPlaybackService", "Playback started for $prayerName")
+
+        } catch (e: Exception) {
+            Log.e("AzanPlaybackService", "Error during Azan playback", e)
+            isPlaying = false
             stopSelfAndCleanup()
         }
-
-        mediaPlayer?.setOnErrorListener { mp, what, extra ->
-            val errorTime = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
-            Log.e("AzanPlaybackService", "MediaPlayer ERROR at $errorTime for $prayerName. What: $what, Extra: $extra")
-            // Add detailed error logging as before if needed
-            stopSelfAndCleanup()
-            true // Error handled
-        }
-
-        // For local resources, MediaPlayer.create() often prepares synchronously.
-        // If it returns non-null, it's likely ready or preparing.
-        // The setOnPreparedListener is the robust way to handle it.
-        // If create() was successful, the listener will be called.
-        // If you still have issues, you could add:
-        // if (mediaPlayer?.isPlaying == false && !mediaPlayer!!.isLooping && !mediaPlayer!!.isPreparing){ try { mediaPlayer?.prepareAsync() } catch (e:Exception) {} }
-        // but typically MediaPlayer.create() handles this for local files.
     }
-
 
     private fun stopSelfAndCleanup() {
-        Log.d("AzanPlaybackService", "stopSelfAndCleanup called.")
+        Log.d("AzanPlaybackService", "Stopping service and cleaning up.")
+
         try {
-            if (mediaPlayer?.isPlaying == true) {
-                mediaPlayer?.stop()
-                Log.d("AzanPlaybackService", "MediaPlayer stopped in cleanup.")
-            }
-            mediaPlayer?.release()
-            mediaPlayer = null
-            Log.d("AzanPlaybackService", "MediaPlayer released in cleanup.")
-        } catch (e: Exception) {
-            Log.e("AzanPlaybackService", "Exception during media player stop/release in cleanup", e)
-        }
+            mediaPlayer?.stop()
+        } catch (_: Exception) {}
+
+        mediaPlayer?.release()
+        mediaPlayer = null
+        isPlaying = false
 
         if (serviceWakeLock?.isHeld == true) {
             serviceWakeLock?.release()
-            Log.d("AzanPlaybackService", "Service WakeLock released in cleanup.")
+            Log.d("AzanPlaybackService", "WakeLock released.")
         }
 
-        Log.d("AzanPlaybackService", "Calling stopForeground(true) and stopSelf().")
-        stopForeground(STOP_FOREGROUND_REMOVE) // true / STOP_FOREGROUND_REMOVE to remove notification
+        stopForeground(true)
         stopSelf()
+
+        focusRequest?.let {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioManager.abandonAudioFocusRequest(it)
+            }
+        } ?: audioManager.abandonAudioFocus(null)
     }
 
     override fun onDestroy() {
-        Log.d("AzanPlaybackService", "onDestroy called. Ensuring cleanup.")
-        stopSelfAndCleanup() // Ensure all resources are released
+        Log.d("AzanPlaybackService", "onDestroy called.")
+        stopSelfAndCleanup()
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        // We don't provide binding, so return null
-        return null
-    }
+    override fun onBind(intent: Intent?): IBinder? = null
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW // Use LOW or DEFAULT. HIGH may make a sound for the notification itself.
-            ).apply {
-                description = "Channel for Azan playback notifications"
-                // Set other channel properties if needed (e.g., setShowBadge(false))
-            }
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-            Log.d("AzanPlaybackService", "Notification channel '$CHANNEL_ID' created.")
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+            Log.d("AzanPlaybackService", "Notification channel created.")
         }
+    }
+
+    private fun createNotification(prayerName: String): Notification {
+        val notificationIntent = Intent(this, MainActivity::class.java)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        else PendingIntent.FLAG_UPDATE_CURRENT
+
+        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, flags)
+
+        val stopIntent = Intent(this, AzanPlaybackService::class.java).apply {
+            action = ACTION_STOP_AZAN_SERVICE
+        }
+        val stopPendingIntent = PendingIntent.getService(this, 1, stopIntent, flags)
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("حان وقت صلاة $prayerName")
+            .setContentText("الأذان يرفع الآن")
+            .setSmallIcon(R.drawable.ic_stop_azan)
+            .setContentIntent(pendingIntent)
+            .addAction(R.drawable.ic_stop_azan, "إيقاف", stopPendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .build()
     }
 }

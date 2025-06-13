@@ -8,18 +8,27 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import android.util.Log // For logging
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
+import com.google.gson.Gson
+
 
 
 // This creates the DataStore instance; the name "settings" is the preference file name.
 // Place this at the top level of the file.
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+import com.example.azantest3.dataStore
 
 class SettingsDataStore(private val context: Context) {
+
 
     companion object {
         // This is the key we'll use to store the boolean value
         val ADD_HOUR_OFFSET_KEY = booleanPreferencesKey("add_hour_offset_preference")
         val AZAN_ENABLED_KEY = booleanPreferencesKey("azan_enabled_preference")
+        val PRAYER_CACHE_KEY = stringPreferencesKey("cached_prayer_times")
+        val PRAYER_CACHE_DATE_KEY = stringPreferencesKey("cached_prayer_times_date")
     }
 
     // This Flow will emit the latest value of our boolean preference.
@@ -37,6 +46,21 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { settings ->
             settings[ADD_HOUR_OFFSET_KEY] = addOffset
         }
+    }
+
+    suspend fun cachePrayerTimes(json: String, date: String) {
+        Log.d("SettingsDataStore", "Caching prayers for $date")
+        context.dataStore.edit { prefs ->
+            prefs[PRAYER_CACHE_KEY] = json
+            prefs[PRAYER_CACHE_DATE_KEY] = date
+        }
+    }
+
+    suspend fun getCachedPrayerTimes(): Pair<String?, String?> {
+        val prefs = context.dataStore.data.first()
+        val json = prefs[PRAYER_CACHE_KEY]
+        val date = prefs[PRAYER_CACHE_DATE_KEY]
+        return Pair(json, date)
     }
 
     // New Flow and Save function for Azan enabled state
