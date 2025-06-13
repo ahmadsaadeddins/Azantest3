@@ -52,7 +52,6 @@
             android:foregroundServiceType="mediaPlayback|mediaPlayback" />
         <activity
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.Azantest3"
             android:name=".MainActivity">
             <intent-filter>
@@ -62,7 +61,7 @@
             </intent-filter>
         </activity>
         <receiver
-            android:name=".widget.PrayerTimeWidgetProvider"
+            android:name=".PrayerTimeWidgetProvider"
         android:exported="false"> <!-- Set to true if it needs to receive broadcasts from other apps, typically false -->
         <intent-filter>
             <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

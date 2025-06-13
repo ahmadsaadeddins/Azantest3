@@ -1,8 +1,6 @@
 package com.example.azantest3
 
-import SettingsDataStore
 import android.app.Application
-import android.content.Context
 import android.icu.text.SimpleDateFormat
 import android.icu.util.Calendar
 import android.util.Log
@@ -24,7 +22,7 @@ class PrayerRepository(private val dao: PrayerTimeDao, private val settingsDataS
         private var lastCachedKey: String? = null
         private var lastCachedPrayers: List<PrayerTime>? = null
 
-        fun clearCacheFor(context: Context) {
+        fun clearCacheFor() {
             Log.d("PrayerRepository", "⛔ Cache manually invalidated due to time change.")
             lastCachedKey = null
             lastCachedPrayers = null
@@ -58,7 +56,7 @@ class PrayerRepository(private val dao: PrayerTimeDao, private val settingsDataS
         }
     }
 
-    suspend fun getTodayAndTomorrowPrayers(todayMonth: String, todayDayNum: Int): List<PrayerTime> {
+    private suspend fun getTodayAndTomorrowPrayers(todayMonth: String, todayDayNum: Int): List<PrayerTime> {
         val results = mutableListOf<PrayerTime>()
         Log.d("PrayerRepository", "Fetching prayers for $todayMonth $todayDayNum")
 

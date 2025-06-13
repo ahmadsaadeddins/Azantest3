@@ -71,5 +71,5 @@ dependencies {
     implementation(libs.google.gson) // Accessing the library defined in TOML
     implementation(libs.androidx.lifecycle.viewmodelCompose) // Accessing the library defined in TOML
     implementation(libs.androidx.core)
-    implementation("androidx.paging:paging-runtime:3.3.6")
+    implementation(libs.androidx.paging.runtime)
 }

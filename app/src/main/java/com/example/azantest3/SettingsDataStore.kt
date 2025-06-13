@@ -1,24 +1,17 @@
-// SettingsDataStore.kt
+package com.example.azantest3// com.example.azantest3.SettingsDataStore.kt
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import android.util.Log // For logging
 import androidx.datastore.preferences.core.stringPreferencesKey
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.filterNotNull
-import com.google.gson.Gson
 
 
 
 // This creates the DataStore instance; the name "settings" is the preference file name.
 // Place this at the top level of the file.
-import com.example.azantest3.dataStore
 
 class SettingsDataStore(private val context: Context) {
 
@@ -36,20 +29,20 @@ class SettingsDataStore(private val context: Context) {
     val addHourOffsetFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences ->
             val value = preferences[ADD_HOUR_OFFSET_KEY] ?: false
-            Log.d("SettingsDataStore", "Reading ADD_HOUR_OFFSET_KEY: $value")
+            Log.d("com.example.azantest3.SettingsDataStore", "Reading ADD_HOUR_OFFSET_KEY: $value")
             value
         }
 
     // This suspend function saves the boolean preference value.
     suspend fun saveAddHourOffset(addOffset: Boolean) {
-        Log.d("SettingsDataStore", "Saving ADD_HOUR_OFFSET_KEY: $addOffset")
+        Log.d("com.example.azantest3.SettingsDataStore", "Saving ADD_HOUR_OFFSET_KEY: $addOffset")
         context.dataStore.edit { settings ->
             settings[ADD_HOUR_OFFSET_KEY] = addOffset
         }
     }
 
     suspend fun cachePrayerTimes(json: String, date: String) {
-        Log.d("SettingsDataStore", "Caching prayers for $date")
+        Log.d("com.example.azantest3.SettingsDataStore", "Caching prayers for $date")
         context.dataStore.edit { prefs ->
             prefs[PRAYER_CACHE_KEY] = json
             prefs[PRAYER_CACHE_DATE_KEY] = date

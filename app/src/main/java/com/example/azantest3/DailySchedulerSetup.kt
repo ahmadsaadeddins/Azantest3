@@ -5,8 +5,7 @@ import android.content.Context
 import android.icu.util.Calendar
 import android.util.Log
 import androidx.work.Constraints
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
@@ -34,7 +33,7 @@ fun scheduleDailyRescheduler(context: Context) {
 
     WorkManager.getInstance(context).enqueueUniquePeriodicWork(
         "DailyAzanRescheduleWorkName",
-        androidx.work.ExistingPeriodicWorkPolicy.REPLACE, // Or REPLACE if you want to update it
+        ExistingPeriodicWorkPolicy.UPDATE, // Or REPLACE if you want to update it
         dailyWorkRequest
     )
 //    WorkManager.getInstance(context).enqueueUniqueWork( // Use enqueueUniqueWork for one-time

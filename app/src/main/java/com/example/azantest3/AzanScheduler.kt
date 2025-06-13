@@ -1,6 +1,7 @@
 // AzanScheduler.kt
 package com.example.azantest3 // Use your app's package name
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
@@ -10,19 +11,18 @@ import android.util.Log
 import com.example.azantest3.datastore.PRAYER_NAMES
 import java.util.Calendar
 import java.util.Date
-import java.util.concurrent.ConcurrentLinkedQueue
 
 class AzanScheduler(private val context: Context) {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    private val SUNRISE_PRAYER_NAME_ARABIC = "الشروق"
+    private val sunrisePrayerName = "الشروق"
 
-    fun scheduleAzanForPrayer(prayerTime: Date, prayerName: String, prayerIndex: Int) {
+    private fun scheduleAzanForPrayer(prayerTime: Date, prayerName: String, prayerIndex: Int) {
         if (prayerTime.before(Date())) {
             Log.d("AzanScheduler", "Skipping past prayer: $prayerName at $prayerTime")
             return // Don't schedule for past times
         }
-        if (prayerName.equals(SUNRISE_PRAYER_NAME_ARABIC, ignoreCase = true)) {
+        if (prayerName.equals(sunrisePrayerName, ignoreCase = true)) {
             Log.i("AzanScheduler", "Skipping Azan scheduling for $prayerName as it's Sunrise.")
             return // Do not schedule Azan for Sunrise
         }
@@ -81,7 +81,7 @@ class AzanScheduler(private val context: Context) {
         }
     }
 
-    fun cancelAzanForPrayer(prayerTime: Date, prayerIndex: Int) {
+    private fun cancelAzanForPrayer(prayerTime: Date, prayerIndex: Int) {
         val intent = Intent(context, AzanAlarmReceiver::class.java).apply {
             action = AzanAlarmReceiver.ACTION_PLAY_AZAN
         }
@@ -130,11 +130,7 @@ class AzanScheduler(private val context: Context) {
                         putExtra(AzanAlarmReceiver.PRAYER_NAME_EXTRA, prayerName)
                     }
 
-                    val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-                    } else {
-                        PendingIntent.FLAG_NO_CREATE
-                    }
+                    val pendingIntentFlags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
 
                     val pendingIntent = PendingIntent.getBroadcast(
                         context,
@@ -191,6 +187,7 @@ class AzanScheduler(private val context: Context) {
     // Using just prayerIndex might lead to collisions if you reschedule for the same prayer name
     // across different days without careful management. A timestamp-based or date-combined
     // code is more robust.
+    @SuppressLint("DefaultLocale")
     private fun generateRequestCode(date: Date, prayerIndex: Int): Int {
         val cal = Calendar.getInstance()
         cal.time = date
@@ -199,13 +196,12 @@ class AzanScheduler(private val context: Context) {
         val day = cal.get(Calendar.DAY_OF_MONTH)
         // A simple combination. Ensure it's unique enough for your needs.
         // E.g., YYYYMMDDPI where PI is prayer index
-        return "${year}${String.format("%02d", month)}${String.format("%02d", day)}${prayerIndex}".toIntOrNull() ?: date.hashCode() + prayerIndex
+        return "${year}${String.format("%02d", month)}${
+            String.format(
+                "%02d",
+                day
+            )
+        }${prayerIndex}".toIntOrNull() ?: (date.hashCode() + prayerIndex)
     }
-    private fun generateRequestCode1(prayerName: String, date: Date): Int {
-        val cal = Calendar.getInstance()
-        cal.time = date
-        val dayCode = "${cal.get(Calendar.YEAR)}${String.format("%02d", cal.get(Calendar.MONTH))}${String.format("%02d", cal.get(Calendar.DAY_OF_MONTH))}"
-        val hash = prayerName.hashCode().mod(1000)
-        return (dayCode + hash).toIntOrNull() ?: (dayCode.hashCode() + hash)
-    }
+
 }

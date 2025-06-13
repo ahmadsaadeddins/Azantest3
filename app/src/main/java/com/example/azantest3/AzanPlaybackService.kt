@@ -9,7 +9,6 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import android.media.AudioAttributes
@@ -221,9 +220,7 @@ class AzanPlaybackService : Service() {
 
     private fun createNotification(prayerName: String): Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        else PendingIntent.FLAG_UPDATE_CURRENT
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, flags)
 

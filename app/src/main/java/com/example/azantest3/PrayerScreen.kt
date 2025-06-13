@@ -156,7 +156,7 @@ fun nextPrayer(data: List<List<Date>>): Date? {
         if (todayPrayers.isNotEmpty() && today.before(todayPrayers[0])) {
             return todayPrayers[0] // Fajr today
         }
-    } else if (todayPrayers != null && todayPrayers.isNotEmpty() && today.before(todayPrayers[0])) {
+    } else if (!todayPrayers.isNullOrEmpty() && today.before(todayPrayers[0])) {
         // Case where only today's prayers are available and it's before Fajr
         return todayPrayers[0]
     }
@@ -187,31 +187,30 @@ fun useRemaining(key: Any, nextPrayerDate: Date?, onPrayerTimeReached: () -> Uni
     var remainingTimeDisplay by remember { mutableStateOf(remainingToNextPrayer(nextPrayerDate)) }
 
     LaunchedEffect(key, nextPrayerDate) {
-        val targetDate = nextPrayerDate
-        Log.d("useRemaining", "⏳ Countdown started for: ${targetDate?.let { formatTime(it) } ?: "null"}")
+        Log.d("useRemaining", "⏳ Countdown started for: ${nextPrayerDate?.let { formatTime(it) } ?: "null"}")
 
-        if (targetDate == null) {
+        if (nextPrayerDate == null) {
             remainingTimeDisplay = "No upcoming prayer"
             return@LaunchedEffect
         }
 
-        if (targetDate.time <= Date().time) {
+        if (nextPrayerDate.time <= Date().time) {
             remainingTimeDisplay = "Prayer time!"
-            Log.d("useRemaining", "Prayer time already passed for: ${formatTime(targetDate)}")
+            Log.d("useRemaining", "Prayer time already passed for: ${formatTime(nextPrayerDate)}")
             onPrayerTimeReached()
             return@LaunchedEffect
         }
 
         while (isActive) {
             val now = Date()
-            val newRemaining = remainingToNextPrayer(targetDate)
+            val newRemaining = remainingToNextPrayer(nextPrayerDate)
 
             if (newRemaining != remainingTimeDisplay) {
                 remainingTimeDisplay = newRemaining
             }
 
-            if (targetDate.time <= now.time) {
-                Log.d("useRemaining", "🔔 Prayer time reached at: ${formatTime(targetDate)}")
+            if (nextPrayerDate.time <= now.time) {
+                Log.d("useRemaining", "🔔 Prayer time reached at: ${formatTime(nextPrayerDate)}")
                 remainingTimeDisplay = "Prayer time!"
                 onPrayerTimeReached()
                 break
@@ -249,36 +248,26 @@ fun PrayerCard(prayers: List<List<Date>>, remainingToPrayer: String, currentNext
     }
     // Fallback logic if currentNextPrayerDate doesn't directly map or is null initially
     // This part can be tricky and might need refinement based on how nextPrayer() behaves at edges.
-    if (nextPrayerNameDisplay == null && todayPrayers != null) {
-        val now = Date()
-        var foundCurrentPrayer = false
-        for (i in todayPrayers.indices) {
-            val currentPrayerTime = todayPrayers[i]
-            val nextPrayerTimeInList = todayPrayers.getOrNull(i + 1)
-
-            if (nextPrayerTimeInList != null) {
-                if (now.after(currentPrayerTime) && now.before(nextPrayerTimeInList)) {
-                    nextPrayerNameDisplay = PRAYER_NAMES_ARABIC.getOrNull(i + 1)
-                    foundCurrentPrayer = true
-                    break
-                }
-                if (now.time == currentPrayerTime.time) {
-                    nextPrayerNameDisplay = PRAYER_NAMES_ARABIC.getOrNull(i + 1)
-                    foundCurrentPrayer = true
-                    break
-                }
-            }
-        }
-        if (!foundCurrentPrayer) {
-            if (now.before(todayPrayers[0])) {
-                nextPrayerNameDisplay = PRAYER_NAMES_ARABIC[0]
-            } else if (now.after(todayPrayers.last())) {
-                if (tomorrowPrayers != null && tomorrowPrayers.isNotEmpty()) {
-                    nextPrayerNameDisplay = "الفجر (الغد)"
-                }
-            }
-        }
-    }
+//    if (nextPrayerNameDisplay == null && todayPrayers != null) {
+//        val now = Date()
+//        var foundCurrentPrayer = false
+//        for (i in todayPrayers.indices) {
+//            val currentPrayerTime = todayPrayers[i]
+//            val nextPrayerTimeInList = todayPrayers.getOrNull(i + 1)
+//
+//            if (nextPrayerTimeInList != null) {
+//                if (now.after(currentPrayerTime) && now.before(nextPrayerTimeInList)) {
+//                    foundCurrentPrayer = true
+//                    break
+//                }
+//                if (now.time == currentPrayerTime.time) {
+//                    foundCurrentPrayer = true
+//                    break
+//                }
+//            }
+//        }
+//
+//    }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
 
             Card(
@@ -334,7 +323,7 @@ fun PrayerCard(prayers: List<List<Date>>, remainingToPrayer: String, currentNext
                             if (today.before(todayPrayers[0])) { // Before Fajr
                                 nextPrayerNameDisplay = PRAYER_NAMES_ARABIC[0]
                             } else if (today.after(todayPrayers.last())) { // After Isha
-                                if (tomorrowPrayers != null && tomorrowPrayers.isNotEmpty()) {
+                                if (!tomorrowPrayers.isNullOrEmpty()) {
                                     nextPrayerNameDisplay = "الفجر (الغد)"
                                 }
                             }
@@ -431,7 +420,7 @@ fun PrayerCard(prayers: List<List<Date>>, remainingToPrayer: String, currentNext
                     Spacer(modifier = Modifier.height(12.dp)) // Add some space before the copyright
                     Text(
                         text = "Copyright © Saadeddins  ${
-                            java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                            Calendar.getInstance().get(Calendar.YEAR)
                         }",
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
@@ -469,13 +458,13 @@ fun Prayer(viewModel: PrayerViewModel = androidx.lifecycle.viewmodel.compose.vie
         }
     }
 
-    var prayerTimeReachedTrigger by remember { mutableStateOf(0) }
-    val currentTimeKeyForNextPrayer = remember { mutableStateOf(System.currentTimeMillis()) } // Used to force re-eval of nextPrayer
+    var prayerTimeReachedTrigger by remember { mutableIntStateOf(0) }
+    val currentTimeKeyForNextPrayer = remember { mutableLongStateOf(System.currentTimeMillis()) } // Used to force re-eval of nextPrayer
 
     // This will now re-calculate if prayersAsDates changes OR if prayerTimeReachedTrigger changes
-    val nextPrayerDate by remember(prayersAsDates, prayerTimeReachedTrigger, currentTimeKeyForNextPrayer.value) {
+    val nextPrayerDate by remember(prayersAsDates, prayerTimeReachedTrigger, currentTimeKeyForNextPrayer.longValue) {
         derivedStateOf { // Use derivedStateOf for more efficient recomposition
-            Log.d("PrayerComposable", "Recalculating nextPrayerDate. Trigger: $prayerTimeReachedTrigger, PrayersAsDates hash: ${prayersAsDates.hashCode()}, CurrentTimeKey: ${currentTimeKeyForNextPrayer.value}")
+            Log.d("PrayerComposable", "Recalculating nextPrayerDate. Trigger: $prayerTimeReachedTrigger, PrayersAsDates hash: ${prayersAsDates.hashCode()}, CurrentTimeKey: ${currentTimeKeyForNextPrayer.longValue}")
             nextPrayer(prayersAsDates)
         }
     }
@@ -488,7 +477,7 @@ fun Prayer(viewModel: PrayerViewModel = androidx.lifecycle.viewmodel.compose.vie
             prayerTimeReachedTrigger++
             // Force an update to currentTimeKey to ensure nextPrayer re-evaluates with fresh "now"
             // This is important because nextPrayer() depends on the *current* Date()
-            currentTimeKeyForNextPrayer.value = System.currentTimeMillis()
+            currentTimeKeyForNextPrayer.longValue = System.currentTimeMillis()
 
         }
     )
@@ -501,10 +490,7 @@ fun Prayer(viewModel: PrayerViewModel = androidx.lifecycle.viewmodel.compose.vie
         // --- START: Replacement for the Button ---
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
 
-    Row(
-
-
-    ){
+    Row{
         PrayerCard(
             prayers = prayersAsDates,
             remainingToPrayer = remaining,

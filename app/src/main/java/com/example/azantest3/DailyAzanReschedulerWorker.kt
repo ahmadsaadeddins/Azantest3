@@ -1,6 +1,5 @@
 package com.example.azantest3
 
-import SettingsDataStore
 import android.content.Context
 import android.icu.text.SimpleDateFormat
 import android.icu.util.Calendar
@@ -78,7 +77,6 @@ class DailyAzanReschedulerWorker(
 
             val prayerDatesToSchedule = mutableListOf<Date>()
             val prayerNamesToSchedule = mutableListOf<String>()
-            val baseCalendarForToday = nowCalendar
             val timeFormatter = SimpleDateFormat("HH:mm", Locale.US)
 
             for (prayerName in RELEVANT_PRAYER_NAMES_FOR_AZAN) {
@@ -94,9 +92,9 @@ class DailyAzanReschedulerWorker(
                 if (prayerTimeString != null) {
                     try {
                         val prayerTimeCalendar = Calendar.getInstance().apply {
-                            set(Calendar.YEAR, baseCalendarForToday.get(Calendar.YEAR))
-                            set(Calendar.MONTH, baseCalendarForToday.get(Calendar.MONTH))
-                            set(Calendar.DAY_OF_MONTH, baseCalendarForToday.get(Calendar.DAY_OF_MONTH))
+                            set(Calendar.YEAR, nowCalendar.get(Calendar.YEAR))
+                            set(Calendar.MONTH, nowCalendar.get(Calendar.MONTH))
+                            set(Calendar.DAY_OF_MONTH, nowCalendar.get(Calendar.DAY_OF_MONTH))
                         }
 
                         val parsedTime = timeFormatter.parse(prayerTimeString)

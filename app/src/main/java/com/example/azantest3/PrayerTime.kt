@@ -1,18 +1,12 @@
 package com.example.azantest3
 
 
-import SettingsDataStore
 import android.app.Application
 import android.content.Context
-import android.icu.text.SimpleDateFormat
 import android.icu.util.Calendar
 import android.util.Log
-import androidx.compose.foundation.gestures.forEach
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.text.TextStyle
-import androidx.core.graphics.values
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Dao
@@ -25,17 +19,12 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.azantest3.datastore.PRAYER_NAMES
 import com.example.azantest3.datastore.PRAYER_NAMES_ARABIC
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.launch
-import java.io.InputStreamReader
 import kotlin.jvm.java
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
-import java.time.Month
 import java.util.Date
-import java.util.Locale
 
 @Entity(tableName = "prayer_times", primaryKeys = ["month_name", "day"])
 data class PrayerTime(
@@ -54,8 +43,8 @@ interface PrayerTimeDao {
     @Query("SELECT * FROM prayer_times")
     suspend fun getAll(): List<PrayerTime>
 
-    @Query("SELECT * FROM prayer_times WHERE month_name = :month AND day IN (:day1, :day2)")
-    suspend fun getTwoDays(month: String, day1: Int, day2: Int): List<PrayerTime>
+//    @Query("SELECT * FROM prayer_times WHERE month_name = :month AND day IN (:day1, :day2)")
+//    suspend fun getTwoDays(month: String, day1: Int, day2: Int): List<PrayerTime>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(prayers: List<PrayerTime>)
@@ -89,58 +78,10 @@ abstract class AppDatabase : RoomDatabase() {
 
 
 
-fun mapMonthNameToIndex(monthName: String): Int {
-    // e.g., "january" -> Calendar.JANUARY (which is 0)
-    // This needs to be robust.
-    val monthMap = mapOf(
-        "january" to Calendar.JANUARY, "february" to Calendar.FEBRUARY, "march" to Calendar.MARCH,
-        "april" to Calendar.APRIL, "may" to Calendar.MAY, "june" to Calendar.JUNE,
-        "july" to Calendar.JULY, "august" to Calendar.AUGUST, "september" to Calendar.SEPTEMBER,
-        "october" to Calendar.OCTOBER, "november" to Calendar.NOVEMBER, "december" to Calendar.DECEMBER
-        // Add your month_name variations if they are different (e.g., "Jan", "01")
-    )
-    return monthMap[monthName.lowercase()] ?: throw IllegalArgumentException("Invalid month name: $monthName")
-}
 
-fun mapMonthNameToIndexFull(monthName: String): Int {
-    // Normalize the input to lowercase to handle variations like "January", "january", "JANUARY"
-    val normalizedMonthName = monthName.lowercase()
 
-    return when (normalizedMonthName) {
-        "january" -> Calendar.JANUARY // which is 0
-        "february" -> Calendar.FEBRUARY // which is 1
-        "march" -> Calendar.MARCH // which is 2
-        "april" -> Calendar.APRIL // which is 3
-        "may" -> Calendar.MAY // which is 4
-        "june" -> Calendar.JUNE // which is 5
-        "july" -> Calendar.JULY // which is 6
-        "august" -> Calendar.AUGUST // which is 7
-        "september" -> Calendar.SEPTEMBER // which is 8
-        "october" -> Calendar.OCTOBER // which is 9
-        "november" -> Calendar.NOVEMBER // which is 10
-        "december" -> Calendar.DECEMBER // which is 11
-        else -> throw IllegalArgumentException("Invalid full month name: $monthName (Processed as: $normalizedMonthName)")
-    }
-}
 
-fun mapMonthNameToIndexAbbrv(monthName: String): Int {
-    val normalizedMonthName = monthName.lowercase() // Or .uppercase()
-    return when (normalizedMonthName) {
-        "Jan" -> 0 // Or 1 if you prefer 1-based indexing
-        "Feb" -> 1
-        "Mar" -> 2
-        "Apr" -> 3
-        "May" -> 4
-        "Jun" -> 5 // Make sure "jun" is handled
-        "Jul" -> 6
-        "Aug" -> 7
-        "Sep" -> 8
-        "Oct" -> 9
-        "Nov" -> 10
-        "Dec" -> 11
-        else -> throw IllegalArgumentException("Invalid month name: $monthName")
-    }
-}
+
 fun mapMonthNameToIndexMultilingual(monthName: String): Int {
     Log.d("PrayerTime", "Received month name: '$monthName'")
 
@@ -193,19 +134,7 @@ fun mapMonthNameToIndexMultilingual(monthName: String): Int {
         else -> throw IllegalArgumentException("Invalid month name: $monthName (Processed as: $normalizedMonthName)")
     }
 }
-fun mapIndexToMonthName(monthIndex: Int): String {
-    // e.g., Calendar.JANUARY (0) -> "January" (or whatever format is in your DB)
-    // This should match the case and format in your database exactly.
-    val months = arrayOf(
-        "january", "february", "march", "april", "may", "june", // Changed to abbreviations
-        "july", "august", "september", "october", "november", "december"
-    )
-    if (monthIndex in months.indices) {
-        return months[monthIndex]
-    }
-    throw IllegalArgumentException("Invalid month index: $monthIndex")
 
-}
 fun mapIndexToMonthNameAbrrv(monthIndex: Int): String {
     // e.g., Calendar.JANUARY (0) -> "January" (or whatever format is in your DB)
     // This should match the case and format in your database exactly.
@@ -234,19 +163,19 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val azanScheduler = AzanScheduler(application.applicationContext) // Initialize Scheduler
     private val settingsDataStore = SettingsDataStore(application.applicationContext)
-    val prayerRepository = PrayerRepository(db.prayerTimeDao(), settingsDataStore)
+    private val prayerRepository = PrayerRepository(db.prayerTimeDao(), settingsDataStore)
 
     // --- State for enabling/disabling Azan ---
     // You'll need to persist this setting similar to addHourOffsetSetting
-    companion object { // Define key in companion object for SettingsDataStore
-        val AZAN_ENABLED_KEY = booleanPreferencesKey("azan_enabled_preference")
-    }
+//    companion object { // Define key in companion object for com.example.azantest3.SettingsDataStore
+//        val AZAN_ENABLED_KEY = booleanPreferencesKey("azan_enabled_preference")
+//    }
 
-    // In SettingsDataStore.kt, add:
+    // In com.example.azantest3.SettingsDataStore.kt, add:
     // val azanEnabledFlow: Flow<Boolean> = context.dataStore.data.map { it[AZAN_ENABLED_KEY] ?: false }
     // suspend fun saveAzanEnabled(enabled: Boolean) { context.dataStore.edit { it[AZAN_ENABLED_KEY] = enabled } }
 
-    val azanEnabledSetting: StateFlow<Boolean> = settingsDataStore.azanEnabledFlow // Assuming you add this to SettingsDataStore
+    val azanEnabledSetting: StateFlow<Boolean> = settingsDataStore.azanEnabledFlow // Assuming you add this to com.example.azantest3.SettingsDataStore
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
@@ -255,7 +184,7 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setAzanEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            settingsDataStore.saveAzanEnabled(enabled) // Assuming you add this to SettingsDataStore
+            settingsDataStore.saveAzanEnabled(enabled) // Assuming you add this to com.example.azantest3.SettingsDataStore
 //            if (enabled) {
 //                scheduleRelevantAzans()
 //            } else {
@@ -289,8 +218,8 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
     init {
         Log.d("PrayerViewModel", "Initializing PrayerViewModel...")
         viewModelScope.launch {
-            val calendar = Calendar.getInstance()
-            val monthFormatter = SimpleDateFormat("MMM", Locale.getDefault())
+//            val calendar = Calendar.getInstance()
+//            val monthFormatter = SimpleDateFormat("MMM", Locale.getDefault())
 //            val currentMonth: String = monthFormatter.format(calendar.time)
 //            val currentDayOfMonth: Int = calendar.get(Calendar.DAY_OF_MONTH)
 
@@ -379,7 +308,7 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
     // Call this if settings change that affect prayer times (like addHourOffset)
     // or when Azan is enabled/disabled
     // updateAzanSchedules already correctly reads current .value of settings
-    fun updateAzanSchedules() {
+    private fun updateAzanSchedules() {
         Log.d("PrayerViewModel", "updateAzanSchedules called. AzanEnabled: ${azanEnabledSetting.value}, Offset: ${addHourOffsetSetting.value}, Prayers: ${prayers.value.size}")
         if (azanEnabledSetting.value && prayers.value.isNotEmpty()) { // Ensure prayers is also checked
             scheduleRelevantAzans() // Uses .value internally

@@ -1,11 +1,9 @@
-package com.example.azantest3.widget // Adjust package name
+package com.example.azantest3 // Adjust package name
 
-import SettingsDataStore // Import your SettingsDataStore
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -13,19 +11,12 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.widget.RemoteViews
-// Removed: import androidx.paging.map - Not used here
-import com.example.azantest3.AppDatabase
-import com.example.azantest3.PrayerRepository // Your actual repository
-import com.example.azantest3.R
-// Removed: import com.example.azantest3.datastore.DEFAULT_PRAYERS - No longer using dummy helper with this
 import com.example.azantest3.datastore.PRAYER_NAMES_ARABIC // For display names
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first // To get value from Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat // Keep for calculateRemainingTime if needed, or use a utility
 import android.icu.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -59,7 +50,7 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { appWidgetId ->
             // Get repository instance for each update
             val prayerRepository = getPrayerRepository(context)
-            // Get SettingsDataStore instance
+            // Get com.example.azantest3.SettingsDataStore instance
             updateAppWidget(context, appWidgetManager, appWidgetId, prayerRepository)
         }
     }
@@ -78,11 +69,11 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
                 val now = Calendar.getInstance()
 
                 // Fetch next prayer using the actual repository method
-                // The getNextUpcomingPrayerForWidget method now directly takes SettingsDataStore
+                // The getNextUpcomingPrayerForWidget method now directly takes com.example.azantest3.SettingsDataStore
                 val nextPrayerInfo: PrayerRepository.NextPrayerInfo? =
                     prayerRepository.getNextUpcomingPrayerForWidget(now)
 
-                val nextPrayerNameDisplay: String
+                val nextPrayerNameDisplay1: String
                 val nextPrayerTimeDate: Date?
 
                 if (nextPrayerInfo != null) {
@@ -90,7 +81,7 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
                     // to the Arabic name if needed for display.
                     // This assumes PRAYER_NAMES in your repo logic and PRAYER_NAMES_ARABIC here have corresponding order.
                     val prayerIndex = com.example.azantest3.datastore.PRAYER_NAMES.indexOf(nextPrayerInfo.name)
-                    nextPrayerNameDisplay = if (prayerIndex != -1) {
+                    nextPrayerNameDisplay1 = if (prayerIndex != -1) {
                         PRAYER_NAMES_ARABIC.getOrElse(prayerIndex) { nextPrayerInfo.name }
                     } else {
                         nextPrayerInfo.name // Fallback to the name from repo if not found in PRAYER_NAMES
@@ -98,7 +89,7 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
                     nextPrayerTimeDate = nextPrayerInfo.time
                     Log.d(TAG, "Fetched next prayer: ${nextPrayerInfo.name} (Entity: ${nextPrayerInfo.prayerTimeEntity.fajr}..), Time: $nextPrayerTimeDate")
                 } else {
-                    nextPrayerNameDisplay = PRAYER_NAMES_ARABIC.getOrElse(0) { "الصلاة" } // Default "Prayer" in Arabic
+                    nextPrayerNameDisplay1 = PRAYER_NAMES_ARABIC.getOrElse(0) { "الصلاة" } // Default "Prayer" in Arabic
                     nextPrayerTimeDate = null
                     Log.d(TAG, "No next prayer info found.")
                 }
@@ -109,11 +100,11 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
                     "--:--:--" // Or "N/A"
                 }
 
-                Log.d(TAG, "Displaying: Name: $nextPrayerNameDisplay, Remaining: $remainingTimeDisplay")
+                Log.d(TAG, "Displaying: Name: $nextPrayerNameDisplay1, Remaining: $remainingTimeDisplay")
 
                 // Switch to Main dispatcher for UI updates
                 withContext(Dispatchers.Main) {
-                    views.setTextViewText(R.id.tv_next_prayer_name, nextPrayerNameDisplay)
+                    views.setTextViewText(R.id.tv_next_prayer_name, nextPrayerNameDisplay1)
                     views.setTextViewText(R.id.tv_remaining_time, remainingTimeDisplay)
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                     Log.d(TAG, "Widget UI updated for appWidgetId: $appWidgetId")
@@ -168,7 +159,6 @@ class PrayerTimeWidgetProvider : AppWidgetProvider() {
             }
         }
     }
-    private var timeTickReceiver: BroadcastReceiver? = null
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
