@@ -12,7 +12,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Azantest3Theme {
-                Prayer()
+                PrayerNavigation()
             }
         }
     }

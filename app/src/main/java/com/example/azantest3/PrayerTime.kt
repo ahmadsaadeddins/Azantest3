@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import java.util.Date
 
+
 @Entity(tableName = "prayer_times", primaryKeys = ["month_name", "day"])
 data class PrayerTime(
     val month_name: String,
@@ -162,9 +163,37 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
     val prayers: State<List<PrayerTime>> = _prayers
 
     private val azanScheduler = AzanScheduler(application.applicationContext) // Initialize Scheduler
-    private val settingsDataStore = SettingsDataStore(application.applicationContext)
+    private val settingsDataStore = SettingsDataStore(application)
     private val prayerRepository = PrayerRepository(db.prayerTimeDao(), settingsDataStore)
+    val iqamaSettings: StateFlow<IqamaSettings> = settingsDataStore.iqamaSettingsFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = IqamaSettings()
+        )
 
+    fun getIqamaOffsetForPrayer(prayerIndex: Int): Int {
+        val settings = iqamaSettings.value
+        return when (prayerIndex) {
+            0 -> settings.fajrIqama
+            1 -> settings.sunriseOffset
+            2 -> settings.dhuhrIqama
+            3 -> settings.asrIqama
+            4 -> settings.maghribIqama
+            5 -> settings.ishaIqama
+            else -> 15
+        }
+    }
+    fun updateIqamaSetting(prayerName: String, minutes: Int) {
+        viewModelScope.launch {
+            settingsDataStore.updateIqamaSettings(prayerName, minutes)
+        }
+    }
+    // Add function to calculate Duha time
+//    fun getDuhaTime(sunriseTime: Date): Date {
+//        val settings = iqamaSettings.value
+//        return Date(sunriseTime.time + (settings.sunriseOffset * 60 * 1000))
+//    }
     // --- State for enabling/disabling Azan ---
     // You'll need to persist this setting similar to addHourOffsetSetting
 //    companion object { // Define key in companion object for com.example.azantest3.SettingsDataStore
@@ -217,6 +246,13 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         Log.d("PrayerViewModel", "Initializing PrayerViewModel...")
+        viewModelScope.launch {
+            iqamaSettings.collect { settings ->
+                Log.d("PrayerViewModel", "Iqama settings updated: $settings")
+                updateAzanSchedules()
+            }
+        }
+
         viewModelScope.launch {
 //            val calendar = Calendar.getInstance()
 //            val monthFormatter = SimpleDateFormat("MMM", Locale.getDefault())
@@ -271,7 +307,7 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
             PRAYER_NAMES, currentOffsetEnabled)
 
         // 2. Get today's and tomorrow's Fajr prayer Date objects
-        val (_, todayPrayers, tomorrowPrayers) = todayAndTomorrow(allPrayersAsDates)
+        val (_, todayPrayers) = todayAndTomorrow(allPrayersAsDates)
 
         val prayerTimesToSchedule = mutableListOf<Date>()
         val prayerNamesToSchedule = mutableListOf<String>()
@@ -281,6 +317,13 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
                 prayerTimesToSchedule.add(prayerDate)
                 prayerNamesToSchedule.add(PRAYER_NAMES_ARABIC[index]) // Or PRAYER_NAMES
             }
+            // Add iqama time if it's not sunrise
+                val iqamaOffset = getIqamaOffsetForPrayer(index)
+                val iqamaTime = Date(prayerDate.time + (iqamaOffset * 60 * 1000))
+                if (iqamaTime.after(Date())) {
+                    prayerTimesToSchedule.add(iqamaTime)
+                    prayerNamesToSchedule.add("إقامة ${PRAYER_NAMES_ARABIC[index]}")
+                }
         }
 
         // Optionally, add tomorrow's Fajr
@@ -315,7 +358,7 @@ class PrayerViewModel(application: Application) : AndroidViewModel(application) 
         } else {
             // Cancellation logic
             if (prayers.value.isNotEmpty()){ // Only try to get dates if prayers exist
-                val (today, todayPrayersAsDates, _) = todayAndTomorrow(prayerTimesToDateList(prayers.value,
+                val ( er, todayPrayersAsDates, _) = todayAndTomorrow(prayerTimesToDateList(prayers.value,
                     PRAYER_NAMES, addHourOffsetSetting.value))
                 todayPrayersAsDates?.let {
                     Log.d("PrayerViewModel", "Cancelling Azans in updateAzanSchedules.")
