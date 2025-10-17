@@ -3,23 +3,25 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.example.azantest3">
 
-    <!-- For exact alarms on Android 12 (API 31) and above. -->
-    <!-- You might need to request this permission at runtime or guide the user to system settings. -->
+    <!-- Exact alarm permissions for Android 12 (API 31) and above -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    
+    <!-- Boot and time change permissions -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" /> <!-- For older way, might not be needed if SCHEDULE_EXACT_ALARM is used properly -->
-
-
-    <!-- For showing notifications on Android 13 (API 33) and above -->
+    
+    <!-- Notification permissions for Android 13 (API 33) and above -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- To ensure the device wakes up to play the alarm -->
+    <!-- Wake lock for ensuring alarms work properly -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- If you decide to use a foreground service for playing the sound -->
+    <!-- Foreground service permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-
+    
+    <!-- System alert window permission (if needed for Azan display) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
@@ -32,45 +34,94 @@
         android:theme="@style/Theme.Azantest3"
         tools:targetApi="31"
         android:name=".MyApplication">
+        
+        <!-- Main Activity -->
+        <activity
+            android:exported="true"
+            android:theme="@style/Theme.Azantest3"
+            android:name=".MainActivity"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <!-- Improved Time Change Receiver with comprehensive intent filters -->
         <receiver
             android:name=".TimeChangeReceiver"
             android:enabled="true"
-            android:exported="false"> <!-- Set exported to false if only your app needs it -->
-            <intent-filter>
+            android:exported="false"
+            android:directBootAware="true"> <!-- Allow receiver to work during direct boot -->
+            <intent-filter android:priority="1000"> <!-- High priority for time changes -->
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" /> <!-- Some devices -->
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" /> <!-- HTC devices -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" /> <!-- App updates -->
+                <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package" />
             </intent-filter>
         </receiver>
+        
+        <!-- Azan Alarm Receiver -->
         <receiver
+            android:name=".AzanAlarmReceiver"
             android:enabled="true"
             android:exported="false"
-            android:name=".AzanAlarmReceiver" />
+            android:directBootAware="true"> <!-- Allow alarms to work during direct boot -->
+            <intent-filter>
+                <action android:name="com.example.azantest3.ACTION_PLAY_AZAN" />
+            </intent-filter>
+        </receiver>
+        
+        <!-- Azan Playback Service -->
         <service
             android:name=".AzanPlaybackService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback|mediaPlayback" />
-        <activity
-            android:exported="true"
-            android:theme="@style/Theme.Azantest3"
-            android:name=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:foregroundServiceType="mediaPlayback"
+            android:directBootAware="true" /> <!-- Allow service during direct boot -->
+        
+        <!-- Prayer Time Widget Provider -->
         <receiver
             android:name=".PrayerTimeWidgetProvider"
-        android:exported="false"> <!-- Set to true if it needs to receive broadcasts from other apps, typically false -->
-        <intent-filter>
-            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            <action android:name="com.example.azantest3.widget.ACTION_AUTO_UPDATE" /> <!-- Custom action -->
-        </intent-filter>
-        <meta-data
-            android:name="android.appwidget.provider"
-            android:resource="@xml/prayer_widget_provider_info" />
-    </receiver>
+            android:exported="false"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.azantest3.widget.ACTION_AUTO_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/prayer_widget_provider_info" />
+        </receiver>
+        
+        <!-- Work Manager initialization (if needed) -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup" />
+        </provider>
     </application>
+
+    <!-- Queries for specific intents (Android 11+ package visibility) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TIME_SET" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.BOOT_COMPLETED" />
+        </intent>
+    </queries>
 
 </manifest>
