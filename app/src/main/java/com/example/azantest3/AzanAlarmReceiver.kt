@@ -34,6 +34,48 @@ class AzanAlarmReceiver : BroadcastReceiver() {
         
         // Track currently playing Azans to prevent overlapping
         private val playingAzans = ConcurrentHashMap<String, Long>()
+        
+        /**
+         * Cleanup method to remove old entries from tracking maps
+         */
+        fun cleanupOldEntries() {
+            val currentTime = System.currentTimeMillis()
+            val cutoffTime = currentTime - (24 * 60 * 60 * 1000L) // 24 hours
+            
+            // Clean up old recent alarms
+            val recentAlarmsToRemove = recentAlarms.entries
+                .filter { it.value < cutoffTime }
+                .map { it.key }
+            
+            recentAlarmsToRemove.forEach { prayerName ->
+                recentAlarms.remove(prayerName)
+            }
+            
+            // Clean up old playing azans (should be much shorter anyway)
+            val playingAzansToRemove = playingAzans.entries
+                .filter { (currentTime - it.value) > 600_000L } // 10 minutes
+                .map { it.key }
+            
+            playingAzansToRemove.forEach { prayerName ->
+                playingAzans.remove(prayerName)
+            }
+            
+            if (recentAlarmsToRemove.isNotEmpty() || playingAzansToRemove.isNotEmpty()) {
+                Log.d(TAG, "Cleaned up ${recentAlarmsToRemove.size} recent alarms and ${playingAzansToRemove.size} playing azans")
+            }
+        }
+        
+        /**
+         * Gets current tracking statistics for debugging
+         */
+        fun getTrackingStats(): Map<String, Any> {
+            return mapOf(
+                "recentAlarmsCount" to recentAlarms.size,
+                "playingAzansCount" to playingAzans.size,
+                "recentAlarms" to recentAlarms.keys.toList(),
+                "playingAzans" to playingAzans.keys.toList()
+            )
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -241,50 +283,6 @@ class AzanAlarmReceiver : BroadcastReceiver() {
             Log.d(TAG, "Cleaned up triggered alarm storage for $prayerName")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to cleanup alarm storage for $prayerName", e)
-        }
-    }
-
-    /**
-     * Cleanup method to remove old entries from tracking maps
-     */
-    companion object {
-        fun cleanupOldEntries() {
-            val currentTime = System.currentTimeMillis()
-            val cutoffTime = currentTime - (24 * 60 * 60 * 1000L) // 24 hours
-            
-            // Clean up old recent alarms
-            val recentAlarmsToRemove = recentAlarms.entries
-                .filter { it.value < cutoffTime }
-                .map { it.key }
-            
-            recentAlarmsToRemove.forEach { prayerName ->
-                recentAlarms.remove(prayerName)
-            }
-            
-            // Clean up old playing azans (should be much shorter anyway)
-            val playingAzansToRemove = playingAzans.entries
-                .filter { (currentTime - it.value) > 600_000L } // 10 minutes
-                .map { it.key }
-            
-            playingAzansToRemove.forEach { prayerName ->
-                playingAzans.remove(prayerName)
-            }
-            
-            if (recentAlarmsToRemove.isNotEmpty() || playingAzansToRemove.isNotEmpty()) {
-                Log.d(TAG, "Cleaned up ${recentAlarmsToRemove.size} recent alarms and ${playingAzansToRemove.size} playing azans")
-            }
-        }
-        
-        /**
-         * Gets current tracking statistics for debugging
-         */
-        fun getTrackingStats(): Map<String, Any> {
-            return mapOf(
-                "recentAlarmsCount" to recentAlarms.size,
-                "playingAzansCount" to playingAzans.size,
-                "recentAlarms" to recentAlarms.keys.toList(),
-                "playingAzans" to playingAzans.keys.toList()
-            )
         }
     }
 }
