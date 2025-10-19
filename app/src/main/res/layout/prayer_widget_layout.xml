@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="16dp"
+    android:id="@+id/widget_root_layout"
+    android:background="@drawable/widget_background_dark">
+    >
+<!--    android:background="@drawable/widget_background"> &lt;!&ndash; Optional: Define a background drawable &ndash;&gt;-->
+
+    <TextView
+        android:id="@+id/tv_next_prayer_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Next Prayer"
+        android:textSize="16sp"
+        android:textColor="#FFFFFF" />
+
+    <TextView
+        android:id="@+id/tv_remaining_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="--:--:--"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF" />
+
+</LinearLayout>

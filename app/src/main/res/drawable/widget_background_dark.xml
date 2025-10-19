@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Background Color (e.g., a dark gray or a dark blue) -->
+    <solid android:color="#88000000" /> <!-- Semi-transparent dark background -->
+    <!-- Or a solid dark color like: -->
+    <!-- <solid android:color="#2C3E50" /> -->
+
+
+    <!-- Optional: Rounded Corners -->
+    <corners android:radius="12dp" />
+
+    <!-- Optional: Padding (though you might prefer padding on the LinearLayout itself) -->
+    <!-- <padding
+        android:left="8dp"
+        android:top="8dp"
+        android:right="8dp"
+        android:bottom="8dp" /> -->
+
+    <!-- Optional: Stroke (border) -->
+    <!-- <stroke
+        android:width="1dp"
+        android:color="#B0FFFFFF" /> --> <!-- Light border -->
+
+</shape>
